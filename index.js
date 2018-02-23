@@ -1,14 +1,19 @@
 'use strict';
 
 /*!
- * markdown-toc <https://github.com/jonschlinkert/markdown-toc>
+ * markdown-toc <https://github.com/evgenyrodionov/markdown-toc-cleaned>
  *
- * Copyright © 2013-2017, Jon Schlinkert.
+ * Copyright © 2013-2017, Jon Schlinkert, Evgeny Rodionov.
  * Released under the MIT License.
  */
 
-var utils = require('./lib/utils');
-var querystring = require('querystring');
+var { getTitle, slugify } = require('./lib/utils');
+var qs = require('qs');
+var Remarkable = require('remarkable');
+var li = require('list-item');
+var mdlink = require('markdown-link');
+var merge = require('mixin-deep');
+var pick = require('object.pick');
 
 /**
  * expose `toc`
@@ -26,9 +31,7 @@ module.exports = toc;
  */
 
 function toc(str, options) {
-  return new utils.Remarkable()
-    .use(generate(options))
-    .render(str);
+  return new Remarkable().use(generate(options)).render(str);
 }
 
 /**
@@ -46,7 +49,7 @@ toc.insert = require('./lib/insert');
  */
 
 function generate(options) {
-  var opts = utils.merge({firsth1: true, maxdepth: 6}, options);
+  var opts = merge({ firsth1: true, maxdepth: 6 }, options);
   var stripFirst = opts.firsth1 === false;
   if (typeof opts.linkify === 'undefined') opts.linkify = true;
 
@@ -54,7 +57,9 @@ function generate(options) {
     md.renderer.render = function(tokens) {
       tokens = tokens.slice();
       var seen = {};
-      var len = tokens.length, i = 0, num = 0;
+      var len = tokens.length,
+        i = 0,
+        num = 0;
       var tocstart = -1;
       var arr = [];
       var res = {};
@@ -77,11 +82,12 @@ function generate(options) {
 
       // exclude headings that come before the actual
       // table of contents.
-      var alen = arr.length, j = 0;
+      var alen = arr.length,
+        j = 0;
       while (alen--) {
         var tok = arr[j++];
 
-        if (tok.lines && (tok.lines[0] > tocstart)) {
+        if (tok.lines && tok.lines[0] > tocstart) {
           var val = tok.content;
           if (tok.children && tok.children[0].type === 'link_open') {
             if (tok.children[1].type === 'text') {
@@ -96,8 +102,8 @@ function generate(options) {
           }
 
           tok.seen = opts.num = seen[val];
-          tok.slug = utils.slugify(val, opts);
-          res.json.push(utils.pick(tok, ['content', 'slug', 'lvl', 'i', 'seen']));
+          tok.slug = slugify(val, opts);
+          res.json.push(pick(tok, ['content', 'slug', 'lvl', 'i', 'seen']));
           if (opts.linkify) tok = linkify(tok, opts);
           result.push(tok);
         }
@@ -109,7 +115,7 @@ function generate(options) {
 
       if (stripFirst) result = result.slice(1);
       res.content = bullets(result, opts);
-      res.content += (opts.append || '');
+      res.content += opts.append || '';
       return res;
     };
   };
@@ -124,14 +130,12 @@ function generate(options) {
  */
 
 function bullets(arr, options) {
-  var opts = utils.merge({indent: '  '}, options);
+  var opts = merge({ indent: '  ' }, options);
   opts.chars = opts.chars || opts.bullets || ['-', '*', '+'];
   var unindent = 0;
 
-  var listitem = utils.li(opts);
-  var fn = typeof opts.filter === 'function'
-    ? opts.filter
-    : null;
+  var listitem = li(opts);
+  var fn = typeof opts.filter === 'function' ? opts.filter : null;
 
   // Keep the first h1? This is `true` by default
   if (opts && opts.firsth1 === false) {
@@ -182,16 +186,16 @@ function highest(arr) {
  */
 
 function linkify(tok, options) {
-  var opts = utils.merge({}, options);
+  var opts = merge({}, options);
   if (tok && tok.content) {
     opts.num = tok.seen;
     var text = titleize(tok.content, opts);
-    var slug = utils.slugify(tok.content, opts);
-    slug = querystring.escape(slug);
+    var slug = slugify(tok.content, opts);
+    slug = qs.stringify(slug);
     if (opts && typeof opts.linkify === 'function') {
       return opts.linkify(tok, text, slug, opts);
     }
-    tok.content = utils.mdlink(text, '#' + slug);
+    tok.content = mdlink(text, '#' + slug);
   }
   return tok;
 }
@@ -207,12 +211,14 @@ function linkify(tok, options) {
  */
 
 function titleize(str, opts) {
-  if (opts && opts.strip) { return strip(str, opts); }
+  if (opts && opts.strip) {
+    return strip(str, opts);
+  }
   if (opts && opts.titleize === false) return str;
   if (opts && typeof opts.titleize === 'function') {
     return opts.titleize(str, opts);
   }
-  str = utils.getTitle(str);
+  str = getTitle(str);
   str = str.split(/<\/?[^>]+>/).join('');
   str = str.split(/[ \t]+/).join(' ');
   return str.trim();
@@ -246,10 +252,9 @@ function strip(str, opts) {
  * Expose utils
  */
 
-toc.utils = utils;
 toc.bullets = bullets;
 toc.linkify = linkify;
-toc.slugify = utils.slugify;
+toc.slugify = slugify;
 toc.titleize = titleize;
 toc.plugin = generate;
 toc.strip = strip;
